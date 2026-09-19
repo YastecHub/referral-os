@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: referral-os-api
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AI_PROVIDER
+        value: groq
+      - key: CLIENT_ORIGIN
+        value: "*"
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false

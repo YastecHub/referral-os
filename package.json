@@ -1,0 +1,27 @@
+{
+  "name": "referral-os-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ReferralOS — Multi-facility maternal & emergency triage and referral system",
+  "workspaces": [
+    "referral-os-backend",
+    "referral-os-frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm --prefix referral-os-backend run dev",
+    "dev:frontend": "npm --prefix referral-os-frontend run dev",
+    "build:backend": "npm --prefix referral-os-backend run build",
+    "build:frontend": "npm --prefix referral-os-frontend run build",
+    "test:backend": "npm --prefix referral-os-backend test",
+    "prisma:studio": "npm --prefix referral-os-backend run prisma:studio"
+  },
+  "keywords": [
+    "healthcare",
+    "referral",
+    "triage",
+    "nigeria",
+    "emergency"
+  ],
+  "author": "YastecHub",
+  "license": "ISC"
+}
