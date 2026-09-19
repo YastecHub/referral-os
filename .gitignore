@@ -11,6 +11,8 @@ build/
 */.next/
 out/
 */out/
+.vercel/
+*/.vercel/
 
 # Environment files
 .env
