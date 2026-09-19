@@ -15,11 +15,53 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ─── Capability Normalization ─────────────────────────────────────────────────
+
+const CAPABILITY_MAP: Record<string, Capability> = {
+  "emergency obstetric": Capability.OBSTETRIC_EMERGENCY,
+  "obstetric emergency": Capability.OBSTETRIC_EMERGENCY,
+  "obstetric specialist": Capability.OBSTETRIC_EMERGENCY,
+  "blood transfusion": Capability.BLOOD_BANK,
+  "blood bank": Capability.BLOOD_BANK,
+  "theater": Capability.THEATRE,
+  "theatre": Capability.THEATRE,
+  "surgery": Capability.THEATRE,
+  "maternal icu": Capability.ICU,
+  "icu": Capability.ICU,
+  "nicu": Capability.NICU,
+  "picu": Capability.PAEDIATRICS,
+  "pediatric emergency": Capability.PAEDIATRICS,
+  "paediatrics": Capability.PAEDIATRICS,
+  "pediatrics": Capability.PAEDIATRICS,
+  "burns & trauma": Capability.TRAUMA,
+  "trauma": Capability.TRAUMA,
+  "dialysis": Capability.DIALYSIS,
+};
+
+export function normalizeCapability(cap: string | Capability): Capability {
+  if (Object.values(Capability).includes(cap as Capability)) {
+    return cap as Capability;
+  }
+  const key = String(cap).trim().toLowerCase();
+  return CAPABILITY_MAP[key] ?? Capability.OBSTETRIC_EMERGENCY;
+}
+
+export function normalizeCapabilities(
+  caps?: string | string[] | Capability | Capability[] | null
+): Capability[] {
+  if (!caps) return [Capability.OBSTETRIC_EMERGENCY];
+  const list = Array.isArray(caps) ? caps : [caps];
+  const normalized = list
+    .filter(Boolean)
+    .map((c) => normalizeCapability(c));
+  return Array.from(new Set(normalized));
+}
+
 // ─── Scoring ──────────────────────────────────────────────────────────────────
 
 function scoreFacility(
   facility: Facility,
-  requiredCapability: Capability,
+  requiredCapabilities: Capability[],
   sendingLat: number,
   sendingLng: number,
   urgencyTier: string
@@ -27,12 +69,20 @@ function scoreFacility(
   let score = 0;
   const reasons: string[] = [];
 
-  // 1. Capability match (40 pts)
-  if (facility.capabilities.includes(requiredCapability)) {
-    score += 40;
-    reasons.push("has required capability");
-  } else {
+  // 1. Capability match (up to 40 pts)
+  const reqCaps = requiredCapabilities.length > 0 ? requiredCapabilities : [Capability.OBSTETRIC_EMERGENCY];
+  const matchedCaps = reqCaps.filter((cap) => facility.capabilities.includes(cap));
+
+  if (matchedCaps.length === 0) {
     return { score: 0, reason: "Missing required capability" };
+  }
+
+  const capScore = Math.round(40 * (matchedCaps.length / reqCaps.length));
+  score += capScore;
+  if (matchedCaps.length === reqCaps.length) {
+    reasons.push("has all required capabilities");
+  } else {
+    reasons.push(`matches ${matchedCaps.length}/${reqCaps.length} capabilities`);
   }
 
   // 2. Accepting status (25 pts)
@@ -56,12 +106,12 @@ function scoreFacility(
   if (facility.bedsAvailable > 0) score += 5;
   if (facility.specialistsOnDuty > 0) score += 5;
   if (
-    requiredCapability === Capability.BLOOD_BANK ||
-    requiredCapability === Capability.OBSTETRIC_EMERGENCY
+    reqCaps.includes(Capability.BLOOD_BANK) ||
+    reqCaps.includes(Capability.OBSTETRIC_EMERGENCY)
   ) {
     if (facility.bloodStock > 0) score += 5;
   } else if (
-    requiredCapability === Capability.THEATRE &&
+    reqCaps.includes(Capability.THEATRE) &&
     facility.theatreAvailable
   ) {
     score += 5;
@@ -69,8 +119,12 @@ function scoreFacility(
     score += 5;
   }
 
-  // 5. Urgency boost — for CRITICAL, prefer tertiary
-  if (urgencyTier === "CRITICAL" && facility.tier === "TERTIARY") score += 5;
+  // 5. Urgency boost — for CRITICAL / Emergency, prefer tertiary/secondary
+  const isEmergency =
+    urgencyTier === "CRITICAL" ||
+    urgencyTier === "HIGH" ||
+    String(urgencyTier).toLowerCase() === "emergency";
+  if (isEmergency && facility.tier === "TERTIARY") score += 5;
 
   return { score: Math.min(score, 100), reason: reasons.join(", ") };
 }
@@ -79,20 +133,22 @@ function scoreFacility(
 
 export function rankFacilities(
   candidates: Facility[],
-  requiredCapability: Capability,
+  requiredCapabilities: Capability | Capability[] | string | string[],
   sendingFacilityId: string,
   sendingLat: number,
   sendingLng: number,
   urgencyTier: string,
   excludeFacilityIds: string[] = []
 ): MatchCandidate[] {
+  const normCaps = normalizeCapabilities(requiredCapabilities);
+
   return candidates
     .filter((f) => f.id !== sendingFacilityId)
     .filter((f) => !excludeFacilityIds.includes(f.id))
     .map((f) => {
       const { score, reason } = scoreFacility(
         f,
-        requiredCapability,
+        normCaps,
         sendingLat,
         sendingLng,
         urgencyTier
@@ -109,5 +165,5 @@ export function rankFacilities(
     })
     .filter((c) => c.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+    .slice(0, 5);
 }

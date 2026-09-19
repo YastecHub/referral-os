@@ -32,52 +32,55 @@ Authorization: Bearer <JWT_TOKEN>
 
 ### Authentication Endpoints
 
-#### 1. Login
+#### 1. Public Facility Lookup (For Sign Up Dropdown)
+Populate the facility selector on the registration page:
 ```http
-POST /api/auth/login
-Content-Type: application/json
-```
-**Request Body:**
-```json
-{
-  "email": "amaka@surulere-phc.ng",
-  "password": "demo1234"
-}
+GET /api/auth/facilities
 ```
 **Response (`200 OK`):**
 ```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "6aadc7a3ce862dbbba2f3764",
-    "name": "Amaka Obi",
-    "email": "amaka@surulere-phc.ng",
-    "role": "PHC_WORKER",
-    "facilityId": "6aadc7a1ce862dbbba2f375f"
+[
+  {
+    "id": "6aadc7a1ce862dbbba2f375f",
+    "name": "Surulere PHC",
+    "tier": "PHC",
+    "tierLabel": "Tier 1 — PHC",
+    "location": "Surulere, Lagos",
+    "address": "12 Aguda St, Surulere, Lagos",
+    "availability": "Available"
+  },
+  {
+    "id": "6aadc7a1ce862dbbba2f3760",
+    "name": "Mushin PHC",
+    "tier": "PHC",
+    "tierLabel": "Tier 1 — PHC",
+    "location": "Mushin, Lagos",
+    "address": "22 Palm Ave, Mushin, Lagos",
+    "availability": "Available"
+  },
+  {
+    "id": "6aadc7a1ce862dbbba2f3761",
+    "name": "Lagos General",
+    "tier": "SECONDARY",
+    "tierLabel": "Tier 2 — Secondary",
+    "location": "Lagos Island, Lagos",
+    "address": "1 Broad St, Marina, Lagos Island, Lagos",
+    "availability": "Available"
+  },
+  {
+    "id": "6aadc7a1ce862dbbba2f3762",
+    "name": "Ebute metta CHC",
+    "tier": "PHC",
+    "tierLabel": "Tier 1 — PHC",
+    "location": "Lagos Mainland, Lagos",
+    "address": "14 Cemetery St, Ebute Metta, Lagos",
+    "availability": "Available"
   }
-}
+]
 ```
 
-#### 2. Get Current User Profile
-```http
-GET /api/auth/me
-Authorization: Bearer <TOKEN>
-```
-**Response (`200 OK`):**
-```json
-{
-  "id": "6aadc7a3ce862dbbba2f3764",
-  "name": "Amaka Obi",
-  "email": "amaka@surulere-phc.ng",
-  "role": "PHC_WORKER",
-  "facilityId": "6aadc7a1ce862dbbba2f375f"
-}
-```
-
-#### 3. Register a New User
-- `PHC_WORKER` registration is **open** (no token required).
-- `HOSPITAL_STAFF` and `ADMIN` require an active **Admin Bearer Token** in the header.
-
+#### 2. Register New User (Open for Healthcare Workers)
+Supports all frontend sign-up fields. Facility can be passed by ID or by name (e.g. `"Mushin PHC"`, `"Surulere PHC"`, `"Lagos General"`, `"Ebute metta CHC"`):
 ```http
 POST /api/auth/register
 Content-Type: application/json
@@ -85,15 +88,89 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
-  "name": "Nurse Grace Okon",
-  "email": "grace.okon@surulere-phc.ng",
-  "password": "password123",
-  "role": "PHC_WORKER",
-  "facilityId": "6aadc7a1ce862dbbba2f375f"
+  "fullName": "Dr. Chidi Nwosu",
+  "email": "chidi@ebute-metta.ng",
+  "phoneNumber": "08012345678",
+  "gender": "Male",
+  "profession": "Doctor",
+  "facility": "Ebute metta CHC",
+  "password": "securePassword123"
+}
+```
+**Response (`201 Created`):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "6aadc7a3ce862dbbba2f3764",
+    "name": "Dr. Chidi Nwosu",
+    "fullName": "Dr. Chidi Nwosu",
+    "email": "chidi@ebute-metta.ng",
+    "role": "PHC_WORKER",
+    "facilityId": "6aadc7a1ce862dbbba2f3762",
+    "phone": "08012345678",
+    "gender": "Male",
+    "profession": "Doctor",
+    "facility": {
+      "id": "6aadc7a1ce862dbbba2f3762",
+      "name": "Ebute metta CHC",
+      "tier": "PHC",
+      "lga": "Lagos Mainland"
+    },
+    "redirectTo": "/dashboard"
+  }
 }
 ```
 
-#### 4. List All Users (Admin Only)
+#### 3. Sign In (Normal User & Admin)
+Supports both normal staff and "Sign in as Admin":
+```http
+POST /api/auth/login
+Content-Type: application/json
+```
+**Request Body (Normal Healthcare Staff):**
+```json
+{
+  "email": "amaka@surulere-phc.com",
+  "password": "demo1234"
+}
+```
+**Request Body (Sign in as Admin):**
+```json
+{
+  "email": "admin@referralos.com",
+  "password": "demo1234",
+  "isAdmin": true
+}
+```
+*(Or use dedicated endpoint `POST /api/auth/admin/login`)*
+
+**Response (`200 OK`):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "6aadc7a3ce862dbbba2f3764",
+    "name": "Admin Nexoria",
+    "fullName": "Admin Nexoria",
+    "email": "admin@referralos.com",
+    "role": "ADMIN",
+    "facilityId": "6aadc7a1ce862dbbba2f375a",
+    "redirectTo": "/command-centre"
+  }
+}
+```
+> **Routing Advice**:  
+> Normal healthcare users receive `"redirectTo": "/dashboard"`.  
+> Admins receive `"redirectTo": "/command-centre"`.
+
+#### 4. Current User Profile
+```http
+GET /api/auth/me
+Authorization: Bearer <TOKEN>
+```
+
+#### 5. List All Users (Admin Only)
 ```http
 GET /api/auth/users
 Authorization: Bearer <ADMIN_TOKEN>
@@ -217,60 +294,294 @@ Content-Type: application/json
 
 ---
 
-### 📋 Referrals
+### 📋 Sending Flow & Referrals
 
-#### 1. Create Referral (AI Structuring from Clinical Notes)
+There are **2 ways** to create a referral:
+1. **Normal Form**: Direct form submission with all fields.
+2. **AI-Assisted**: User types a messy clinical note, calls `/ai-assist` to populate the form, reviews/edits fields, and submits.
+
+#### 1. AI-Assisted Note Parsing (Optional Pre-Submission Step)
+Allows user to write a quick/messy note and get structured fields for review in the UI:
 ```http
-POST /api/referrals
-Authorization: Bearer <PHC_TOKEN>
+POST /api/referrals/ai-assist
+Authorization: Bearer <TOKEN>
 Content-Type: application/json
 ```
 **Request Body:**
 ```json
 {
-  "rawNotes": "28yr old woman, 36wks pregnant, heavy bleeding since 2hrs, BP 80/50, very weak, needs urgent surgery"
+  "notes": "Mrs. Adeola, 32yo woman, 34 weeks, severe antepartum bleeding for 2 hours, BP 85/50, needs blood transfusion and emergency cesarean section"
 }
-```
-**Response (`201 Created`):**
-```json
-{
-  "id": "6aadc8062abdb2f61d925de2",
-  "refCode": "REF-2026-0007",
-  "rawNotes": "28yr old woman, 36wks pregnant, heavy bleeding since 2hrs, BP 80/50, very weak, needs urgent surgery",
-  "patientSummary": "28-year-old female, 36 weeks gestation. Antepartum haemorrhage x2 hours with signs of shock.",
-  "patientAge": 28,
-  "patientGender": "Female",
-  "chiefComplaint": "Antepartum haemorrhage",
-  "clinicalFindings": "BP 80/50, pallor, heavy vaginal bleeding",
-  "urgencyTier": "CRITICAL",
-  "urgencyReason": "Severe obstetric haemorrhage with haemodynamic instability",
-  "requiredCapability": "OBSTETRIC_EMERGENCY",
-  "status": "CREATED",
-  "sendingFacilityId": "6aadc7a1ce862dbbba2f375f",
-  "rematchCount": 0,
-  "createdAt": "2026-09-18T23:23:00.000Z"
-}
-```
-
-#### 2. Run Matching Engine
-Calculates travel distance (Haversine), capability match, accepting status, bed stock, and blood availability. Returns candidates ranked 0–100.
-```http
-POST /api/referrals/:id/match
-Authorization: Bearer <PHC_TOKEN>
 ```
 **Response (`200 OK`):**
 ```json
 {
-  "selectedFacilityId": "6aadc7a1ce862dbbba2f3759",
-  "candidates": [
+  "patientName": "Mrs. Adeola",
+  "age": 32,
+  "gender": "Female",
+  "urgency": "Emergency",
+  "urgencyTier": "CRITICAL",
+  "urgencyReason": "Severe obstetric haemorrhage with haemodynamic instability",
+  "requiredCapabilities": [
+    "Emergency obstetric",
+    "Blood transfusion",
+    "Theater"
+  ],
+  "requiredCapability": "OBSTETRIC_EMERGENCY",
+  "chiefComplaint": "Antepartum haemorrhage",
+  "clinicalFindings": "BP 85/50, severe bleeding",
+  "patientSummary": "Mrs. Adeola, 32yo Female. Severe antepartum bleeding...",
+  "notes": "Mrs. Adeola, 32yo woman, 34 weeks..."
+}
+```
+
+#### 2. Create Referral (Normal Form or AI-Assisted Output)
+Both flows submit to this endpoint to create the structured referral:
+```http
+POST /api/referrals
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+```
+**Request Body (Normal Form):**
+```json
+{
+  "patientName": "Amina Bello",
+  "age": 26,
+  "gender": "Female",
+  "urgency": "Emergency",
+  "requiredCapabilities": [
+    "Emergency obstetric",
+    "Blood transfusion",
+    "Theater"
+  ],
+  "notes": "Patient in obstructed labour, fetal heart rate 90 bpm, signs of fetal distress. Needs immediate emergency surgical intervention.",
+  "receivingFacilityId": "6aadc7a1ce862dbbba2f3759"
+}
+```
+*(Available Urgency values: `"Emergency"`, `"Urgent"`, `"Routine"` or `"CRITICAL"`, `"HIGH"`, `"MEDIUM"`)*  
+*(Available Capabilities: `"Emergency obstetric"`, `"Blood transfusion"`, `"Theater"`, `"Maternal ICU"`, `"NICU"`, `"PICU"`, `"Pediatric emergency"`, `"Obstetric specialist"`, `"Surgery"`, `"Burns & trauma"`)*
+
+**Response (`201 Created`):**
+```json
+{
+  "referralId": "6aadc8062abdb2f61d925de2",
+  "patientReference": "REF-2026-0010",
+  "patientName": "Amina Bello",
+  "age": 26,
+  "sex": "Female",
+  "gender": "Female",
+  "urgency": "Emergency",
+  "urgencyTier": "CRITICAL",
+  "requirements": [
+    "Emergency obstetric",
+    "Blood transfusion",
+    "Theater"
+  ],
+  "requiredCapabilities": [
+    "Emergency obstetric",
+    "Blood transfusion",
+    "Theater"
+  ],
+  "clinicalInformation": "Patient in obstructed labour, fetal heart rate 90 bpm...",
+  "currentStatus": "MATCHED",
+  "statusLabel": "Facility Identified",
+  "sendingFacilityId": "6aadc7a1ce862dbbba2f375f",
+  "receivingFacilityId": "6aadc7a1ce862dbbba2f3759",
+  "timeReceived": "2026-09-19T11:40:00.000Z"
+}
+```
+
+#### 3. Receiving Page: Accept / Can't Accept Actions
+
+##### A. Accept Referral
+```http
+POST /api/referrals/:id/accept
+Authorization: Bearer <HOSPITAL_TOKEN>
+```
+Updates status to `ACCEPTED`.
+
+##### B. Can't Accept (Reject & Auto Re-Route)
+*Note: No reason field is required for MVP!*
+```http
+POST /api/referrals/:id/cant-accept
+Authorization: Bearer <HOSPITAL_TOKEN>
+Content-Type: application/json
+```
+**Request Body (Optional):**
+```json
+{}
+```
+*(Or optional `{ "reason": "Theatre currently occupied" }`)*  
+Updates status to `REJECTED`, adds the rejecting hospital to `rejectedFacilityIds`, and automatically re-routes to the next best available facility.
+
+#### 4. Referral Status Lifecycle Updates
+Advances the referral through the stages:
+`Created` → `Facility Identified` → `Accepted` → `Transport Requested` → `In Transit` → `Arrived` → `Care Confirmed` → `Feedback Sent`
+```http
+POST /api/referrals/:id/status
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+```
+**Request Body:**
+```json
+{
+  "status": "Transport Requested",
+  "note": "Ambulance dispatched from LASAMBUS station"
+}
+```
+*(Accepted status values: `"Facility Identified"`, `"Accepted"`, `"Transport Requested"`, `"In Transit"`, `"Arrived"`, `"Care Confirmed"`, `"Feedback Sent"`)*
+
+---
+
+### 📊 Facility Dashboard Endpoint
+
+Returns dynamic counts and categorized referral lists for the facility dashboard:
+```http
+GET /api/referrals/dashboard
+Authorization: Bearer <TOKEN>
+```
+*(Or `GET /api/dashboard` or `GET /api/facilities/:facilityId/dashboard`)*
+
+**Response (`200 OK`):**
+```json
+{
+  "facility": {
+    "id": "6aadc7a1ce862dbbba2f375f",
+    "name": "Surulere PHC",
+    "tier": "PHC",
+    "tierLabel": "Tier 1 — PHC",
+    "location": "Surulere, Lagos",
+    "availability": "Available",
+    "readiness": {
+      "blood": "0 units available",
+      "bloodStock": 0,
+      "equipment": "2 beds available (Theatre unavailable)",
+      "bedsAvailable": 2,
+      "theatreAvailable": false,
+      "specialist": "1 specialist(s) on duty",
+      "specialistsOnDuty": 1
+    }
+  },
+  "stats": {
+    "awaitingResponse": 2,
+    "acceptedToday": 4,
+    "urgentCount": 3,
+    "activeCount": 5,
+    "completedCount": 18,
+    "totalSent": 21,
+    "totalReceived": 7
+  },
+  "sentReferrals": [...],
+  "receivedReferrals": [...],
+  "activeReferrals": [...],
+  "pastReferrals": [...]
+}
+```
+
+---
+
+### 🛰️ Network Command Centre Endpoints
+
+The central monitoring view for facilities, map, and network-wide referrals.
+
+#### 1. Command Centre Overview
+```http
+GET /api/command-centre/overview
+Authorization: Bearer <ADMIN_TOKEN>
+```
+*(Aliases: `GET /api/command-center/overview` or `GET /api/analytics/command-centre`)*
+
+**Response (`200 OK`):**
+```json
+{
+  "summary": {
+    "totalFacilities": 13,
+    "availableFacilities": 11,
+    "unavailableFacilities": 2,
+    "activeReferrals": 6,
+    "urgentReferrals": 4,
+    "awaitingResponse": 2,
+    "inTransit": 1,
+    "arrived": 1,
+    "careConfirmed": 1,
+    "completedReferrals": 24,
+    "totalReferrals": 30,
+    "byStatus": {
+      "CREATED": 1,
+      "MATCHED": 1,
+      "ACCEPTED": 2,
+      "IN_TRANSIT": 1,
+      "ARRIVED": 1,
+      "CARE_CONFIRMED": 1,
+      "FEEDBACK_SENT": 24
+    },
+    "byUrgency": {
+      "CRITICAL": 12,
+      "HIGH": 10,
+      "MEDIUM": 8
+    }
+  },
+  "facilities": [
     {
       "facilityId": "6aadc7a1ce862dbbba2f3759",
       "facilityName": "Gbagada General Hospital",
-      "score": 97,
-      "reason": "has required capability, currently accepting, 7.9 km away",
-      "distance": 7.9
-    },
-    {
+      "facilityTier": "Tier 2 — Secondary",
+      "tierLabel": "Tier 2 — Secondary",
+      "location": "Kosofe, Lagos",
+      "address": "Hospital Rd, Gbagada, Lagos",
+      "lat": 6.5568,
+      "lng": 3.3869,
+      "phone": "01-234-5601",
+      "availability": "Available",
+      "readiness": {
+        "blood": "12 units",
+        "bloodStock": 12,
+        "equipment": "Theatre ready, 10 beds",
+        "bedsAvailable": 10,
+        "theatreAvailable": true,
+        "specialist": "3 specialist(s) on duty",
+        "specialistsOnDuty": 3
+      },
+      "activeReferralsCount": 2
+    }
+  ],
+  "referrals": [...]
+}
+```
+
+#### 2. Selected Facility Details (With Active Referrals)
+When a user clicks on a facility in the Command Centre:
+```http
+GET /api/facilities/:id
+Authorization: Bearer <ADMIN_TOKEN>
+```
+*(Or `GET /api/facilities/:id/overview`)*
+
+Returns full facility information, readiness parameters, and all its active referrals.
+
+---
+
+### 🔍 Matching Engine
+
+#### 1. Preview Candidates (Pre-Submission Matching)
+```http
+POST /api/referrals/match-candidates
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+```
+**Request Body:**
+```json
+{
+  "urgency": "Emergency",
+  "requiredCapabilities": ["Emergency obstetric", "Blood transfusion"]
+}
+```
+
+#### 2. Run Matching on Created Referral
+```http
+POST /api/referrals/:id/match
+Authorization: Bearer <TOKEN>
+```
       "facilityId": "6aadc7a1ce862dbbba2f375a",
       "facilityName": "Lagos Island General Hospital",
       "score": 97,

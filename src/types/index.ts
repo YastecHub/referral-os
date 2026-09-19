@@ -21,6 +21,7 @@ export interface MatchCandidate {
 // ─── AI ───────────────────────────────────────────────────────────────────────
 
 export interface StructuredNotes {
+  patientName?: string | null;
   patientSummary: string;
   patientAge: number | null;
   patientGender: string | null;
@@ -29,6 +30,7 @@ export interface StructuredNotes {
   urgencyTier: UrgencyTier;
   urgencyReason: string;
   requiredCapability: Capability;
+  requiredCapabilities?: string[];
 }
 
 // ─── WebSocket Events ─────────────────────────────────────────────────────────

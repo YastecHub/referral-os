@@ -108,6 +108,9 @@ model User {
   password   String
   role       UserRole
   facilityId String   @db.ObjectId
+  phone      String?
+  gender     String?
+  profession String?
   createdAt  DateTime @default(now())
 
   facility       Facility        @relation(fields: [facilityId], references: [id])
@@ -119,26 +122,28 @@ model User {
 // ─── Referral ─────────────────────────────────────────────────────────────────
 
 model Referral {
-  id                  String         @id @default(auto()) @map("_id") @db.ObjectId
-  refCode             String         @unique
-  rawNotes            String
-  patientSummary      String
-  patientAge          Int?
-  patientGender       String?
-  chiefComplaint      String?
-  clinicalFindings    String?
-  urgencyTier         UrgencyTier    @default(MEDIUM)
-  urgencyReason       String?
-  requiredCapability  Capability
-  status              ReferralStatus @default(CREATED)
-  sendingFacilityId   String         @db.ObjectId
-  receivingFacilityId String?        @db.ObjectId
-  matchCandidates     Json?
-  rejectionReason     String?
-  rejectedFacilityIds String[]       @default([])
-  rematchCount        Int            @default(0)
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  id                   String         @id @default(auto()) @map("_id") @db.ObjectId
+  refCode              String         @unique
+  patientName          String?
+  rawNotes             String?
+  patientSummary       String
+  patientAge           Int?
+  patientGender        String?
+  chiefComplaint       String?
+  clinicalFindings     String?
+  urgencyTier          UrgencyTier    @default(MEDIUM)
+  urgencyReason        String?
+  requiredCapability   Capability     @default(OBSTETRIC_EMERGENCY)
+  requiredCapabilities String[]       @default([])
+  status               ReferralStatus @default(CREATED)
+  sendingFacilityId    String         @db.ObjectId
+  receivingFacilityId  String?        @db.ObjectId
+  matchCandidates      Json?
+  rejectionReason      String?
+  rejectedFacilityIds  String[]       @default([])
+  rematchCount         Int            @default(0)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   sendingFacility   Facility        @relation("SendingFacility", fields: [sendingFacilityId], references: [id])
   receivingFacility Facility?       @relation("ReceivingFacility", fields: [receivingFacilityId], references: [id])

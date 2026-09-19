@@ -6,10 +6,10 @@ import { ReferralUpdatePayload } from "../types";
 // ─── Valid transitions ────────────────────────────────────────────────────────
 
 const TRANSITIONS: Record<ReferralStatus, ReferralStatus[]> = {
-  CREATED:              [ReferralStatus.MATCHED],
+  CREATED:              [ReferralStatus.MATCHED, ReferralStatus.ACCEPTED],
   MATCHED:              [ReferralStatus.ACCEPTED, ReferralStatus.REJECTED],
-  ACCEPTED:             [ReferralStatus.TRANSPORT_REQUESTED, ReferralStatus.IN_TRANSIT],
-  TRANSPORT_REQUESTED:  [ReferralStatus.IN_TRANSIT],
+  ACCEPTED:             [ReferralStatus.TRANSPORT_REQUESTED, ReferralStatus.IN_TRANSIT, ReferralStatus.ARRIVED],
+  TRANSPORT_REQUESTED:  [ReferralStatus.IN_TRANSIT, ReferralStatus.ARRIVED],
   IN_TRANSIT:           [ReferralStatus.ARRIVED],
   ARRIVED:              [ReferralStatus.CARE_CONFIRMED],
   CARE_CONFIRMED:       [ReferralStatus.FEEDBACK_SENT],

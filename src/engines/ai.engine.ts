@@ -12,6 +12,7 @@ Raw notes: "${rawNotes}"
 
 Return this exact JSON shape (no markdown, no explanation):
 {
+  "patientName": "patient full name if mentioned or null",
   "patientSummary": "clean 1-2 sentence clinical summary",
   "patientAge": <number or null>,
   "patientGender": "Male" | "Female" | null,
@@ -19,7 +20,8 @@ Return this exact JSON shape (no markdown, no explanation):
   "clinicalFindings": "key clinical findings",
   "urgencyTier": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
   "urgencyReason": "one sentence reason for urgency tier",
-  "requiredCapability": "OBSTETRIC_EMERGENCY" | "BLOOD_BANK" | "THEATRE" | "NICU" | "ICU" | "DIALYSIS" | "TRAUMA" | "PAEDIATRICS"
+  "requiredCapability": "OBSTETRIC_EMERGENCY" | "BLOOD_BANK" | "THEATRE" | "NICU" | "ICU" | "DIALYSIS" | "TRAUMA" | "PAEDIATRICS",
+  "requiredCapabilities": ["one or more capabilities such as: Emergency obstetric, Blood transfusion, Theater, Maternal ICU, NICU, PICU, Pediatric emergency, Obstetric specialist, Surgery, Burns & trauma"]
 }`;
 
 const INSIGHT_PROMPT = (stats: {
@@ -45,30 +47,70 @@ Return only the insight text, no labels or formatting.`;
 function fallbackStructure(rawNotes: string): StructuredNotes {
   const lower = rawNotes.toLowerCase();
 
-  const ageMatch = rawNotes.match(/(\d{1,3})\s*yr/i);
+  const nameMatch = rawNotes.match(/(?:patient(?:\s*name)?(?:\s*:\s*|\s+is\s+)|\b(?:mrs|ms|miss|mr)\.?\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
+  const patientName = nameMatch ? nameMatch[1].trim() : null;
+
+  const ageMatch = rawNotes.match(/(\d{1,3})\s*(?:yr|years?\s*old|y\/o)/i);
   const patientAge = ageMatch ? parseInt(ageMatch[1], 10) : null;
 
+  const patientGender = /female|woman|girl|mother|pregnant|gravida|para/i.test(lower)
+    ? "Female"
+    : /male|man|boy|father/i.test(lower)
+    ? "Male"
+    : null;
+
   let urgencyTier: UrgencyTier = UrgencyTier.MEDIUM;
-  if (/bleed|haemorrhage|hemorrhage|seizure|eclampsia|shock|collapse/i.test(lower))
+  if (/bleed|haemorrhage|hemorrhage|seizure|eclampsia|shock|collapse|unconscious|asphyxia/i.test(lower))
     urgencyTier = UrgencyTier.CRITICAL;
-  else if (/distress|obstructed|prolonged|dropping|urgent/i.test(lower))
+  else if (/distress|obstructed|prolonged|dropping|urgent|hypertens|severe/i.test(lower))
     urgencyTier = UrgencyTier.HIGH;
 
+  const requiredCapabilities: string[] = [];
   let requiredCapability: Capability = Capability.OBSTETRIC_EMERGENCY;
-  if (/icu|intensive/i.test(lower)) requiredCapability = Capability.ICU;
-  else if (/nicu|preterm|premature/i.test(lower)) requiredCapability = Capability.NICU;
-  else if (/blood|transfus/i.test(lower)) requiredCapability = Capability.BLOOD_BANK;
-  else if (/theatre|surgery|c.section|caesarean/i.test(lower)) requiredCapability = Capability.THEATRE;
+
+  if (/bleed|haemorrhage|hemorrhage|obstetric|pregnant|labor|labour|eclampsia/i.test(lower)) {
+    requiredCapabilities.push("Emergency obstetric");
+  }
+  if (/blood|transfus|anemia|anaemia|pcv/i.test(lower)) {
+    requiredCapabilities.push("Blood transfusion");
+    requiredCapability = Capability.BLOOD_BANK;
+  }
+  if (/theatre|surgery|surgical|c-section|caesarean|laparotomy/i.test(lower)) {
+    requiredCapabilities.push("Theater");
+    requiredCapability = Capability.THEATRE;
+  }
+  if (/maternal icu|icu|intensive care|ventilator/i.test(lower)) {
+    requiredCapabilities.push("Maternal ICU");
+    requiredCapability = Capability.ICU;
+  }
+  if (/nicu|preterm|premature|neonat/i.test(lower)) {
+    requiredCapabilities.push("NICU");
+    requiredCapability = Capability.NICU;
+  }
+  if (/picu|pediatric emergency|paediatric/i.test(lower)) {
+    requiredCapabilities.push("Pediatric emergency");
+    requiredCapability = Capability.PAEDIATRICS;
+  }
+  if (/trauma|burn|accident|fracture/i.test(lower)) {
+    requiredCapabilities.push("Burns & trauma");
+    requiredCapability = Capability.TRAUMA;
+  }
+
+  if (requiredCapabilities.length === 0) {
+    requiredCapabilities.push("Emergency obstetric");
+  }
 
   return {
+    patientName,
     patientSummary: rawNotes.trim(),
     patientAge,
-    patientGender: "Female",
+    patientGender: patientGender ?? "Female",
     chiefComplaint: null,
     clinicalFindings: null,
     urgencyTier,
-    urgencyReason: "Assessed by rules-based fallback",
+    urgencyReason: "Assessed by rules-based triage engine",
     requiredCapability,
+    requiredCapabilities,
   };
 }
 

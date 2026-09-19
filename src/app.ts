@@ -96,6 +96,12 @@ app.use("/api/auth", authRoutes);
 app.use("/api/referrals", referralRoutes);
 app.use("/api/facilities", facilityRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/command-centre", analyticsRoutes);
+app.use("/api/command-center", analyticsRoutes);
+app.get("/api/dashboard", (req, res, next) => {
+  req.url = "/dashboard";
+  referralRoutes(req, res, next);
+});
 
 app.use(notFound);
 app.use(errorHandler);

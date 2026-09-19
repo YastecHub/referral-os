@@ -28,3 +28,17 @@ export function requireRole(...roles: string[]) {
     next();
   };
 }
+
+export function optionalAuthenticate(req: Request, _res: Response, next: NextFunction) {
+  const header = req?.headers?.authorization;
+  if (typeof header === "string" && header.startsWith("Bearer ")) {
+    const token = header.slice(7);
+    try {
+      req.user = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+    } catch {
+      // Ignored for optional auth
+    }
+  }
+  next();
+}
+
