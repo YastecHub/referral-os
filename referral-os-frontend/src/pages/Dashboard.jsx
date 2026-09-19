@@ -41,12 +41,12 @@ export default function Dashboard({ user }) {
     }, [facilityId]);
 
     const sent = useMemo(
-        () => refs.filter((r) => r.sendingFacilityId === facilityId),
+        () => refs.filter((r) => r.sendingFacilityId === facilityId || r.isNew),
         [refs, facilityId]
     );
 
     const received = useMemo(
-        () => refs.filter((r) => r.receivingFacilityId === facilityId),
+        () => refs.filter((r) => r.receivingFacilityId === facilityId || r.isNew),
         [refs, facilityId]
     );
 

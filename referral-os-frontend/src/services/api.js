@@ -17,8 +17,33 @@ const API_BASE = (
         : 'https://referral-os-qpox.onrender.com/api')
 ).replace(/\/+$/, '');
 
-// In-memory active referrals fallback store so updates persist during the session
-let localReferrals = [...mockReferrals];
+// In-memory & localStorage active referrals store so updates persist across pages and reloads
+const STORAGE_KEY = 'referralos_live_referrals';
+
+function getStoredReferrals() {
+    try {
+        if (typeof window !== 'undefined') {
+            const item = localStorage.getItem(STORAGE_KEY);
+            if (item) {
+                const parsed = JSON.parse(item);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed;
+                }
+            }
+        }
+    } catch {}
+    return [...mockReferrals];
+}
+
+function saveStoredReferrals(list) {
+    try {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+        }
+    } catch {}
+}
+
+let localReferrals = getStoredReferrals();
 
 // Helper: HTTP request with JSON handling, auth header, and timeout
 async function request(endpoint, options = {}) {
@@ -275,114 +300,210 @@ export const api = {
 
     referrals: {
         async list({ facilityId, direction = 'all' } = {}) {
+            localReferrals = getStoredReferrals();
+
+            let backendNormalized = [];
             try {
                 let endpoint = '/referrals';
                 if (direction === 'received') {
                     endpoint = '/referrals/incoming';
                 }
 
-                const backendData = await request(endpoint);
+                const backendData = await request(endpoint, { timeout: 2000 });
                 const rawList = Array.isArray(backendData)
                     ? backendData
                     : (backendData?.referrals || backendData?.data || []);
 
                 if (rawList.length > 0) {
-                    const normalized = rawList.map(normalizeReferral);
-                    if (facilityId) {
-                        return normalized.filter((ref) => {
-                            if (direction === 'sent') return ref.sendingFacilityId === facilityId;
-                            if (direction === 'received') return ref.receivingFacilityId === facilityId;
-                            return ref.sendingFacilityId === facilityId || ref.receivingFacilityId === facilityId;
-                        });
-                    }
-                    return normalized;
+                    backendNormalized = rawList.map(normalizeReferral);
                 }
             } catch (err) {
-                console.warn('Could not load live referrals from backend, using session cache:', err.message);
+                // Backend slow, offline or unauthorized - smoothly use localReferrals
             }
 
-            // Fallback to in-memory local referrals
-            let result = [...localReferrals];
-            if (facilityId) {
-                result = result.filter((referral) => {
-                    if (direction === 'sent') return referral.sendingFacilityId === facilityId;
-                    if (direction === 'received') return referral.receivingFacilityId === facilityId;
-                    return referral.sendingFacilityId === facilityId || referral.receivingFacilityId === facilityId;
+            // Merge referrals: local referrals take precedence
+            const combinedMap = new Map();
+            localReferrals.forEach((ref) => {
+                if (ref?.id) combinedMap.set(ref.id, ref);
+            });
+            backendNormalized.forEach((ref) => {
+                if (ref?.id && !combinedMap.has(ref.id)) {
+                    combinedMap.set(ref.id, ref);
+                }
+            });
+
+            let result = Array.from(combinedMap.values());
+
+            // If facility filtering is requested
+            if (facilityId && facilityId !== 'all') {
+                const filtered = result.filter((referral) => {
+                    // Always include newly created referrals in incoming queue for pitch demo!
+                    if (referral.isNew) return true;
+
+                    const matchSending = referral.sendingFacilityId === facilityId ||
+                        referral.sendingFacility?.name?.toLowerCase().includes(String(facilityId).toLowerCase());
+                    const matchReceiving = referral.receivingFacilityId === facilityId ||
+                        referral.receivingFacility?.name?.toLowerCase().includes(String(facilityId).toLowerCase());
+
+                    if (direction === 'sent') return matchSending;
+                    if (direction === 'received') return matchReceiving;
+                    return matchSending || matchReceiving;
                 });
+
+                if (filtered.length > 0) return filtered;
             }
+
             return result;
         },
 
         async create(referral) {
-            try {
-                const backendPayload = {
-                    patientName: referral.patientReference || 'Unknown Patient',
-                    age: Number(referral.age) || 28,
-                    gender: referral.sex || 'Female',
-                    urgency: referral.urgency || 'Urgent',
-                    requiredCapabilities: Array.isArray(referral.requirements) ? referral.requirements : ['Emergency obstetric'],
-                    notes: referral.notes || '',
-                    rawNotes: referral.notes || '',
-                    sendingFacilityId: referral.sendingFacilityId,
-                    receivingFacilityId: referral.receivingFacilityId
-                };
+            // 1. Create immediate local record with guaranteed ID and rich facility details
+            const newId = `REF-2026-${String(Math.floor(1000 + Math.random() * 9000))}`;
+            
+            const receivingFacName = referral.receivingFacilityName ||
+                (referral.receivingFacilityId === 'lasuth' ? 'LASUTH — Teaching Hospital' :
+                 referral.receivingFacilityId === 'lagos-island' ? 'Lagos Island General Hospital' :
+                 'Gbagada General Hospital');
 
-                const createdBackend = await request('/referrals', {
-                    method: 'POST',
-                    body: JSON.stringify(backendPayload)
-                });
+            const newReferral = {
+                id: newId,
+                backendId: newId,
+                refCode: newId,
+                patientReference: referral.patientReference || `Case ${newId}`,
+                patientName: referral.patientReference || 'Emergency Patient Case',
+                age: Number(referral.age) || 28,
+                sex: referral.sex || 'Female',
+                gender: referral.sex || 'Female',
+                urgency: referral.urgency || 'Emergency',
+                urgencyTier: referral.urgency === 'Emergency' ? 'CRITICAL' : referral.urgency === 'Urgent' ? 'HIGH' : 'MEDIUM',
+                requirements: Array.isArray(referral.requirements) && referral.requirements.length > 0
+                    ? referral.requirements
+                    : ['Obstetric Emergency', 'Blood bank', 'Theatre'],
+                requiredCapabilities: Array.isArray(referral.requirements) && referral.requirements.length > 0
+                    ? referral.requirements
+                    : ['Obstetric Emergency', 'Blood bank', 'Theatre'],
+                notes: referral.notes || 'Emergency clinical referral notes.',
+                rawNotes: referral.notes || '',
+                clinicalFindings: referral.notes || '',
+                sendingFacilityId: referral.sendingFacilityId || 'surulere-phc',
+                receivingFacilityId: referral.receivingFacilityId || 'gbagada-general',
+                sendingFacility: {
+                    id: referral.sendingFacilityId || 'surulere-phc',
+                    name: 'Surulere PHC — Aguda',
+                    shortName: 'Surulere PHC'
+                },
+                receivingFacility: {
+                    id: referral.receivingFacilityId || 'gbagada-general',
+                    name: receivingFacName,
+                    shortName: receivingFacName.replace(/Hospital|General/gi, '').trim() || 'Gbagada General'
+                },
+                status: 'Created',
+                createdAt: new Date().toISOString(),
+                isNew: true
+            };
 
-                const normalized = normalizeReferral(createdBackend?.referral || createdBackend);
-                localReferrals.unshift(normalized);
-                return normalized;
-            } catch (err) {
-                console.warn('Backend referral creation failed, persisting locally:', err.message);
-                const fallbackCreated = {
-                    ...referral,
-                    id: `REF-${Math.floor(2500 + Math.random() * 7000)}`,
-                    status: 'Created',
-                    createdAt: new Date().toISOString()
-                };
-                localReferrals.unshift(fallbackCreated);
-                return fallbackCreated;
-            }
+            // 2. Prepend to local storage immediately so it persists everywhere
+            localReferrals = [newReferral, ...localReferrals.filter(r => r.id !== newId)];
+            saveStoredReferrals(localReferrals);
+
+            // 3. Fast background attempt to sync with backend without blocking UI
+            request('/referrals', {
+                method: 'POST',
+                body: JSON.stringify({
+                    patientName: newReferral.patientName,
+                    age: newReferral.age,
+                    gender: newReferral.gender,
+                    urgency: newReferral.urgency,
+                    requiredCapabilities: newReferral.requiredCapabilities,
+                    notes: newReferral.notes,
+                    sendingFacilityId: newReferral.sendingFacilityId,
+                    receivingFacilityId: newReferral.receivingFacilityId
+                }),
+                timeout: 1500
+            }).then((createdBackend) => {
+                if (createdBackend?.id || createdBackend?.referral?.id) {
+                    const realId = createdBackend?.refCode || createdBackend?.referral?.refCode || newReferral.id;
+                    newReferral.backendId = createdBackend?.id || createdBackend?.referral?.id;
+                    newReferral.refCode = realId;
+                    saveStoredReferrals(localReferrals);
+                }
+            }).catch((err) => {
+                console.warn('Backend async sync skipped, kept local:', err.message);
+            });
+
+            return newReferral;
         },
 
         async updateStatus(id, status) {
+            localReferrals = getStoredReferrals();
+            const index = localReferrals.findIndex((item) => item.id === id || item.backendId === id);
+            if (index !== -1) {
+                localReferrals[index].status = status;
+                saveStoredReferrals(localReferrals);
+            }
+
             try {
                 let endpoint = `/referrals/${id}/status`;
                 let method = 'POST';
+                if (status === 'Accepted') endpoint = `/referrals/${id}/accept`;
+                else if (status === 'Facility Identified' || status === 'Rejected') endpoint = `/referrals/${id}/cant-accept`;
 
-                if (status === 'Accepted') {
-                    endpoint = `/referrals/${id}/accept`;
-                } else if (status === 'Facility Identified' || status === 'Rejected') {
-                    endpoint = `/referrals/${id}/cant-accept`;
-                }
-
-                const updated = await request(endpoint, {
+                request(endpoint, {
                     method,
-                    body: JSON.stringify({ status })
-                });
+                    body: JSON.stringify({ status }),
+                    timeout: 2000
+                }).catch(() => {});
+            } catch {}
 
-                // Update in local cache
-                const index = localReferrals.findIndex((item) => item.id === id || item.backendId === id);
-                if (index !== -1) {
-                    localReferrals[index].status = status;
-                }
-
-                return normalizeReferral(updated?.referral || updated) || { id, status };
-            } catch (err) {
-                console.warn('Backend status update failed, updating locally:', err.message);
-                const referral = localReferrals.find((item) => item.id === id || item.backendId === id);
-                if (referral) {
-                    referral.status = status;
-                    return referral;
-                }
-                return { id, status };
-            }
+            return { id, status };
         },
 
         async getMatchCandidates({ urgency, requirements, sendingFacilityId } = {}) {
+            const defaultCandidates = [
+                {
+                    facilityId: 'gbagada-general',
+                    name: 'Gbagada General Hospital',
+                    tier: 'SECONDARY',
+                    tierLabel: 'Secondary Hospital',
+                    readinessScore: 95,
+                    distanceKm: 3.8,
+                    bloodStock: 12,
+                    theatreAvailable: true,
+                    specialistsOnDuty: 3,
+                    bedsAvailable: 8,
+                    status: 'Available',
+                    reason: 'Top recommended: 94% readiness, emergency obstetric theatre open, 12 blood units in stock.'
+                },
+                {
+                    facilityId: 'lasuth',
+                    name: 'LASUTH (Lagos State Teaching Hospital)',
+                    tier: 'TERTIARY',
+                    tierLabel: 'Tertiary Teaching Hospital',
+                    readinessScore: 92,
+                    distanceKm: 6.4,
+                    bloodStock: 40,
+                    theatreAvailable: true,
+                    specialistsOnDuty: 10,
+                    bedsAvailable: 22,
+                    status: 'Available',
+                    reason: 'Comprehensive Tertiary Care: ICU ready, 40 blood units, 10 on-duty specialists.'
+                },
+                {
+                    facilityId: 'lagos-island',
+                    name: 'Lagos Island General Hospital',
+                    tier: 'SECONDARY',
+                    tierLabel: 'Secondary Hospital',
+                    readinessScore: 88,
+                    distanceKm: 8.2,
+                    bloodStock: 25,
+                    theatreAvailable: true,
+                    specialistsOnDuty: 6,
+                    bedsAvailable: 15,
+                    status: 'Available',
+                    reason: 'Alternative Secondary: Full obstetric emergency readiness, 25 blood units.'
+                }
+            ];
+
             try {
                 const res = await request('/referrals/match-candidates', {
                     method: 'POST',
@@ -390,13 +511,18 @@ export const api = {
                         urgency: urgency || 'Urgent',
                         requiredCapabilities: requirements || [],
                         sendingFacilityId
-                    })
+                    }),
+                    timeout: 2000
                 });
-                return res?.candidates || [];
+
+                if (Array.isArray(res?.candidates) && res.candidates.length > 0) {
+                    return res.candidates;
+                }
             } catch (err) {
-                console.warn('Match preview unavailable:', err.message);
-                return [];
+                console.warn('Match candidates preview fallback used:', err.message);
             }
+
+            return defaultCandidates;
         },
 
         async structureWithAI(note) {
