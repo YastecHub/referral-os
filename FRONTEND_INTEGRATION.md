@@ -905,3 +905,336 @@ export interface Referral {
   feedback?: FeedbackNote | null;
 }
 ```
+
+---
+
+## 12. Voice & Multilingual Engine (STT, TTS & 4 Nigerian Languages)
+
+ReferralOS features a specialized clinical voice and translation engine designed for Nigerian healthcare workers, midwives, emergency responders, and patients across the **4 core languages of Nigeria**:
+- **English** (`en`, BCP-47: `en-NG`)
+- **Yorùbá** (`yo`, BCP-47: `yo-NG`)
+- **Hausa** (`ha`, BCP-47: `ha-NG`)
+- **Igbo** (`ig`, BCP-47: `ig-NG`)
+
+---
+
+### A. Supported Languages & Metadata Lookup
+
+```http
+GET /api/voice/languages
+GET /api/multilingual/languages
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "supportedLanguages": [
+    {
+      "code": "en",
+      "name": "English",
+      "nativeName": "English (Nigeria)",
+      "bcp47": "en-NG",
+      "region": "National / Official",
+      "samplePhrases": {
+        "postpartumHemorrhage": "Severe bleeding after delivery, patient is pale and tachycardic",
+        "obstructedLabour": "Prolonged labor over 14 hours, fetal distress detected",
+        "ambulanceDispatch": "Emergency ambulance dispatched to your facility immediately"
+      }
+    },
+    {
+      "code": "yo",
+      "name": "Yoruba",
+      "nativeName": "Èdè Yorùbá",
+      "bcp47": "yo-NG",
+      "region": "Southwest Nigeria (Lagos, Ogun, Oyo, Osun, Ondo, Ekiti)",
+      "samplePhrases": {
+        "postpartumHemorrhage": "Ẹ̀jẹ̀ ń tú jáde púpọ̀ lẹ́yìn ìbímọ, ara aláìsàn ti tutù",
+        "obstructedLabour": "Ìrọbi tí kò tètè bí lẹ́yìn wákàtí mẹ́rìnlá, ọmọ inú ń jàkàdì",
+        "ambulanceDispatch": "Ọkọ̀ ìtọ́jú pàjáwìrì ti ń bọ̀ wá sí ilé-ìwòsàn yín lẹ́sẹ̀kẹsẹ̀"
+      }
+    },
+    {
+      "code": "ha",
+      "name": "Hausa",
+      "nativeName": "Harshen Hausa",
+      "bcp47": "ha-NG",
+      "region": "Northern Nigeria (Kano, Kaduna, Sokoto, Katsina, etc.)",
+      "samplePhrases": {
+        "postpartumHemorrhage": "Zubar jini mai tsanani bayan haihuwa, majiyyaciyar tana cikin mawuyacin hali",
+        "obstructedLabour": "Nakuda mai tsawo sama da sa'o'i goma sha hudu, bugun zuciyar jariri yana raguwa",
+        "ambulanceDispatch": "An aiko motar asibiti ta gaggawa zuwa asibitinku nan take"
+      }
+    },
+    {
+      "code": "ig",
+      "name": "Igbo",
+      "nativeName": "Asụsụ Igbo",
+      "bcp47": "ig-NG",
+      "region": "Southeast Nigeria (Enugu, Imo, Anambra, Abia, Ebonyi)",
+      "samplePhrases": {
+        "postpartumHemorrhage": "Ọbara na-agbapụta nke ukwuu mgbe a mụsịrị nwa, ahụ adịghị onye ọrịa mma",
+        "obstructedLabour": "Ime ime na-esiri ike karịa awa iri na anọ, nwa nọ n'ime na-ata ahụhụ",
+        "ambulanceDispatch": "Ụgbọ ala mberede na-abịa n'ụlọ ọgwụ unu ngwa ngwa"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### B. Speech-to-Text (STT) — Transcribe Audio
+
+Upload an audio recording from mobile or browser microphone (WebM, WAV, MP3, M4A, OGG).
+
+- **Multipart Upload**: `POST /api/voice/transcribe` with `audio` or `file` file field.
+- **Base64 JSON**: `POST /api/voice/transcribe` with JSON body:
+
+```http
+POST /api/voice/transcribe
+Content-Type: application/json
+```
+```json
+{
+  "audio": "data:audio/webm;base64,GkXfo59ChoEBQveBA...",
+  "format": "webm",
+  "language": "yo"
+}
+```
+**Response (`200 OK`):**
+```json
+{
+  "transcript": "Obinrin ọmọ ọgbọ̀n ọdún kan ń ṣẹ̀jẹ̀ púpọ̀ lẹ́yìn ìbímọ, BP rẹ̀ jẹ́ 85 lórí 50...",
+  "language": "yo",
+  "duration": 6.8,
+  "wordsCount": 18
+}
+```
+
+---
+
+### C. Hands-Free "Speech-to-Referral" (Voice Intake)
+
+Allows rural health workers, midwives, or ER doctors to record voice notes in **English, Yorùbá, Hausa, or Igbo**. The engine:
+1. Transcribes audio via Whisper Large v3.
+2. Translates to clinical English if spoken in Yorùbá, Hausa, or Igbo.
+3. Automatically parses patient demographics, vitals, urgency tier (`EMERGENCY`, `URGENT`, `ROUTINE`), and required capabilities.
+
+```http
+POST /api/voice/speech-to-referral
+Content-Type: application/json
+```
+```json
+{
+  "audio": "data:audio/webm;base64,GkXfo59ChoEBQveBA...",
+  "format": "webm",
+  "language": "ha",
+  "notes": "Optional extra typed notes"
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "transcript": "Mace mai shekaru talatin tana zubar da jini sosai bayan haihuwa a PHC...",
+  "translatedTranscript": "A 30-year-old female is experiencing severe postpartum hemorrhage following delivery at the PHC...",
+  "sourceLanguage": "ha",
+  "structuredReferral": {
+    "patientName": "Unknown Female",
+    "patientAge": 30,
+    "patientGender": "Female",
+    "chiefComplaint": "Severe postpartum hemorrhage with hemodynamic instability",
+    "clinicalFindings": "Estimated blood loss > 1000ml, BP 85/50 mmHg, tachycardic, uterus atonic.",
+    "urgencyTier": "EMERGENCY",
+    "urgencyReason": "Life-threatening postpartum hemorrhage with signs of hypovolemic shock requiring urgent surgical intervention and blood transfusion.",
+    "requiredCapability": "ICU",
+    "vitalSigns": {
+      "bloodPressure": "85/50",
+      "heartRate": 128,
+      "respiratoryRate": 26
+    }
+  }
+}
+```
+
+---
+
+### D. Text-to-Speech (TTS) & Audio Synthesis
+
+Synthesizes audio alerts for high-urgency notifications or patient instructions.
+
+```http
+POST /api/voice/text-to-speech
+Content-Type: application/json
+```
+```json
+{
+  "text": "Àkíyèsí pàjáwìrì: Ọkọ̀ ìtọ́jú ti ń bọ̀ wá sí ilé-ìwòsàn yín.",
+  "language": "yo",
+  "voiceHint": "female",
+  "speed": 1.0
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "text": "Àkíyèsí pàjáwìrì: Ọkọ̀ ìtọ́jú ti ń bọ̀ wá sí ilé-ìwòsàn yín.",
+  "language": "yo",
+  "bcp47": "yo-NG",
+  "audioContent": null,
+  "webSpeechConfig": {
+    "lang": "yo-NG",
+    "rate": 1.0,
+    "pitch": 1.0,
+    "voiceHint": "female"
+  }
+}
+```
+
+---
+
+### E. Clinical Translation & Localized Referral Summaries
+
+#### 1. Translate Clinical Text
+```http
+POST /api/multilingual/translate
+Content-Type: application/json
+```
+```json
+{
+  "text": "Patient has severe pre-eclampsia with BP 180/110. Administer magnesium sulfate immediately.",
+  "targetLanguage": "ig",
+  "context": "clinical"
+}
+```
+**Response (`200 OK`):**
+```json
+{
+  "originalText": "Patient has severe pre-eclampsia with BP 180/110. Administer magnesium sulfate immediately.",
+  "translatedText": "Onye ọrịa nwere oke ọrịa pre-eclampsia nwere ọbara mgbali elu 180/110. Nyee magnesium sulfate ozugbo.",
+  "sourceLanguage": "en",
+  "targetLanguage": "ig",
+  "context": "clinical"
+}
+```
+
+#### 2. Localized Referral Summary (Localized Emergency Cards + TTS Voice Prompt)
+
+```http
+POST /api/multilingual/referral-summary
+Content-Type: application/json
+```
+```json
+{
+  "referral": {
+    "refCode": "REF-LA-2026-9042",
+    "urgencyTier": "EMERGENCY",
+    "patientAge": 28,
+    "patientGender": "Female",
+    "chiefComplaint": "Severe eclampsia with recurrent seizures",
+    "clinicalFindings": "Unconscious post-ictal, BP 190/120, protein 3+ in urine"
+  },
+  "targetLanguage": "yo"
+}
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "language": "yo",
+  "bcp47": "yo-NG",
+  "localizedSummary": {
+    "emergencyTitle": "ÌFÚNNILÓKÙN PÀJÁWÌRÌ (EMERGENCY)",
+    "urgencyLabel": "ÌṢÈRÒ PÀJÁWÌRÌ",
+    "patientInfo": "Aláìsàn: Obìnrin, ọmọ ọdún 28",
+    "complaint": "Ẹ̀kùn Àkọ́kọ́: Severe eclampsia pẹ̀lú ìgúnlẹ̀ léraléra",
+    "instructions": "Ẹ tètè gba aláìsàn yìí láyè, kí ẹ sì pèsè ẹ̀rọ àti egbògi fún ìtọ́jú eclampsia.",
+    "ttsSpokenText": "Àkíyèsí pàjáwìrì: Ìfọwọ́sowọ́pọ̀ pàjáwìrì fún Obìnrin, ọmọ ọdún 28."
+  },
+  "ttsSpokenText": "Àkíyèsí pàjáwìrì: Ìfọwọ́sowọ́pọ̀ pàjáwìrì fún Obìnrin, ọmọ ọdún 28..."
+}
+```
+
+---
+
+### F. Frontend Code Snippets
+
+#### 1. React / Browser Voice Recording Hook (`useAudioRecorder.ts`)
+```typescript
+import { useState, useRef } from "react";
+
+export function useAudioRecorder() {
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunksRef.current = [];
+    const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunksRef.current.push(e.data);
+    };
+
+    mediaRecorderRef.current = mediaRecorder;
+    mediaRecorder.start();
+    setIsRecording(true);
+  };
+
+  const stopRecording = (): Promise<Blob> => {
+    return new Promise((resolve) => {
+      if (!mediaRecorderRef.current) return;
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        setIsRecording(false);
+        resolve(audioBlob);
+      };
+      mediaRecorderRef.current.stop();
+    });
+  };
+
+  const submitSpeechToReferral = async (blob: Blob, language: "yo" | "ha" | "ig" | "en" = "en") => {
+    const formData = new FormData();
+    formData.append("audio", blob, "voice_intake.webm");
+    formData.append("language", language);
+
+    const token = localStorage.getItem("token");
+    const response = await fetch("http://localhost:4000/api/voice/speech-to-referral", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+
+    return await response.json();
+  };
+
+  return { isRecording, startRecording, stopRecording, submitSpeechToReferral };
+}
+```
+
+#### 2. Native Browser Text-to-Speech Playback (`speakText.ts`)
+```typescript
+export function playVoiceAlert(spokenText: string, bcp47: "en-NG" | "yo-NG" | "ha-NG" | "ig-NG" = "en-NG") {
+  if (!("speechSynthesis" in window)) {
+    console.warn("Web Speech API not supported in this browser.");
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(spokenText);
+  utterance.lang = bcp47;
+  utterance.rate = 0.95;
+  utterance.pitch = 1.0;
+
+  const voices = window.speechSynthesis.getVoices();
+  const matchedVoice = voices.find(v => v.lang.startsWith(bcp47.slice(0, 2)) || v.lang === bcp47);
+  if (matchedVoice) {
+    utterance.voice = matchedVoice;
+  }
+
+  window.speechSynthesis.speak(utterance);
+}
+```
+

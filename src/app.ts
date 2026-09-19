@@ -7,9 +7,12 @@ import authRoutes from "./modules/auth/auth.routes";
 import referralRoutes from "./modules/referrals/referrals.routes";
 import facilityRoutes from "./modules/facilities/facilities.routes";
 import analyticsRoutes from "./modules/analytics/analytics.routes";
+import voiceRoutes from "./modules/voice/voice.routes";
+import multilingualRoutes from "./modules/multilingual/multilingual.routes";
 import { errorHandler, notFound } from "./middleware/errorHandler";
 
 const app = express();
+
 
 app.set("trust proxy", 1);
 
@@ -49,7 +52,8 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
 // ── Swagger UI ────────────────────────────────────────────────────────────────
 app.use(
@@ -98,10 +102,13 @@ app.use("/api/facilities", facilityRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/command-centre", analyticsRoutes);
 app.use("/api/command-center", analyticsRoutes);
+app.use("/api/voice", voiceRoutes);
+app.use("/api/multilingual", multilingualRoutes);
 app.get("/api/dashboard", (req, res, next) => {
   req.url = "/dashboard";
   referralRoutes(req, res, next);
 });
+
 
 app.use(notFound);
 app.use(errorHandler);
