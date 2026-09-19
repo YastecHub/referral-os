@@ -101,7 +101,7 @@ export function CapabilitySelect({
                         : 'Select capabilities'}
                 </span>
 
-                <ChevronDown size={16} />
+                
             </div>
 
             <div className="capability-options">
