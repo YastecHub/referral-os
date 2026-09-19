@@ -1,0 +1,82 @@
+import express from "express";
+import cors from "cors";
+import swaggerUi from "swagger-ui-express";
+import { env } from "./config/env";
+import { swaggerSpec } from "./config/swagger";
+import authRoutes from "./modules/auth/auth.routes";
+import referralRoutes from "./modules/referrals/referrals.routes";
+import facilityRoutes from "./modules/facilities/facilities.routes";
+import analyticsRoutes from "./modules/analytics/analytics.routes";
+import { errorHandler, notFound } from "./middleware/errorHandler";
+
+const app = express();
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      if (
+        process.env.NODE_ENV !== "production" ||
+        origin === env.CLIENT_ORIGIN ||
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
+  })
+);
+app.use(express.json());
+
+// ── Swagger UI ────────────────────────────────────────────────────────────────
+app.use(
+  "/api/docs",
+  swaggerUi.serve,
+  (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const host = req.get("host") || `localhost:${env.PORT}`;
+    const protocol = req.protocol || "http";
+    const currentUrl = `${protocol}://${host}`;
+    const dynamicSpec = {
+      ...swaggerSpec,
+      servers: [
+        { url: currentUrl, description: `Current server (${currentUrl})` },
+        { url: "http://localhost:4000", description: "Port 4000 (Primary)" },
+        { url: "http://localhost:4001", description: "Port 4001 (Secondary)" },
+      ],
+    };
+    swaggerUi.setup(dynamicSpec)(req, res, next);
+  }
+);
+app.get("/api/docs.json", (req, res) => {
+  const host = req.get("host") || `localhost:${env.PORT}`;
+  const protocol = req.protocol || "http";
+  const currentUrl = `${protocol}://${host}`;
+  res.setHeader("Content-Type", "application/json");
+  res.json({
+    ...swaggerSpec,
+    servers: [
+      { url: currentUrl, description: `Current server (${currentUrl})` },
+      { url: "http://localhost:4000", description: "Port 4000 (Primary)" },
+      { url: "http://localhost:4001", description: "Port 4001 (Secondary)" },
+    ],
+  });
+});
+
+// ── Root redirect → Swagger ─────────────────────────────────────────────────
+app.get("/", (_req, res) => res.redirect("/api/docs"));
+
+// ── Health ────────────────────────────────────────────────────────────────────
+app.get("/health", (_req, res) => res.json({ status: "ok", service: "ReferralOS" }));
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+app.use("/api/auth", authRoutes);
+app.use("/api/referrals", referralRoutes);
+app.use("/api/facilities", facilityRoutes);
+app.use("/api/analytics", analyticsRoutes);
+
+app.use(notFound);
+app.use(errorHandler);
+
+export default app;

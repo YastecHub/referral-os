@@ -1,0 +1,183 @@
+// ReferralOS — Prisma Schema (MongoDB)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum FacilityTier {
+  PHC
+  SECONDARY
+  TERTIARY
+}
+
+enum AcceptingStatus {
+  ACCEPTING
+  LIMITED
+  UNAVAILABLE
+}
+
+enum Capability {
+  OBSTETRIC_EMERGENCY
+  BLOOD_BANK
+  THEATRE
+  NICU
+  ICU
+  DIALYSIS
+  TRAUMA
+  PAEDIATRICS
+}
+
+enum UserRole {
+  PHC_WORKER
+  HOSPITAL_STAFF
+  ADMIN
+}
+
+enum ReferralStatus {
+  CREATED
+  MATCHED
+  ACCEPTED
+  TRANSPORT_REQUESTED
+  IN_TRANSIT
+  ARRIVED
+  CARE_CONFIRMED
+  FEEDBACK_SENT
+  REJECTED
+}
+
+enum UrgencyTier {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum EventType {
+  CREATED
+  MATCHED
+  ACCEPTED
+  REJECTED
+  TRANSPORT_REQUESTED
+  IN_TRANSIT
+  ARRIVED
+  CARE_CONFIRMED
+  FEEDBACK_SENT
+  REMATCHED
+}
+
+// ─── Facility ─────────────────────────────────────────────────────────────────
+
+model Facility {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  tier              FacilityTier
+  address           String
+  lga               String
+  lat               Float
+  lng               Float
+  phone             String
+  capabilities      Capability[]
+  acceptingStatus   AcceptingStatus @default(ACCEPTING)
+  bloodStock        Int             @default(0)
+  specialistsOnDuty Int             @default(0)
+  bedsAvailable     Int             @default(0)
+  theatreAvailable  Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  users             User[]
+  sentReferrals     Referral[]      @relation("SendingFacility")
+  receivedReferrals Referral[]      @relation("ReceivingFacility")
+
+  @@map("facilities")
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  email      String   @unique
+  password   String
+  role       UserRole
+  facilityId String   @db.ObjectId
+  createdAt  DateTime @default(now())
+
+  facility       Facility        @relation(fields: [facilityId], references: [id])
+  referralEvents ReferralEvent[]
+
+  @@map("users")
+}
+
+// ─── Referral ─────────────────────────────────────────────────────────────────
+
+model Referral {
+  id                  String         @id @default(auto()) @map("_id") @db.ObjectId
+  refCode             String         @unique
+  rawNotes            String
+  patientSummary      String
+  patientAge          Int?
+  patientGender       String?
+  chiefComplaint      String?
+  clinicalFindings    String?
+  urgencyTier         UrgencyTier    @default(MEDIUM)
+  urgencyReason       String?
+  requiredCapability  Capability
+  status              ReferralStatus @default(CREATED)
+  sendingFacilityId   String         @db.ObjectId
+  receivingFacilityId String?        @db.ObjectId
+  matchCandidates     Json?
+  rejectionReason     String?
+  rejectedFacilityIds String[]       @default([])
+  rematchCount        Int            @default(0)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  sendingFacility   Facility        @relation("SendingFacility", fields: [sendingFacilityId], references: [id])
+  receivingFacility Facility?       @relation("ReceivingFacility", fields: [receivingFacilityId], references: [id])
+  events            ReferralEvent[]
+  feedback          FeedbackNote?
+
+  @@map("referrals")
+}
+
+// ─── ReferralEvent ────────────────────────────────────────────────────────────
+
+model ReferralEvent {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  referralId String    @db.ObjectId
+  eventType  EventType
+  actorId    String?   @db.ObjectId
+  note       String?
+  metadata   Json?
+  timestamp  DateTime  @default(now())
+
+  referral Referral @relation(fields: [referralId], references: [id])
+  actor    User?    @relation(fields: [actorId], references: [id])
+
+  @@map("referral_events")
+}
+
+// ─── FeedbackNote ─────────────────────────────────────────────────────────────
+
+model FeedbackNote {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  referralId         String   @unique @db.ObjectId
+  diagnosisConfirmed String
+  treatmentGiven     String
+  followUpRequired   Boolean  @default(false)
+  followUpNote       String?
+  outcomeStatus      String?
+  sentAt             DateTime @default(now())
+
+  referral Referral @relation(fields: [referralId], references: [id])
+
+  @@map("feedback_notes")
+}
