@@ -2,6 +2,7 @@ import React, {
     useEffect,
     useState
 } from 'react';
+import { Volume2 } from 'lucide-react';
 
 import { api } from '../services/api';
 import { facilities as mockFacilities } from '../data/mockData';
@@ -53,6 +54,18 @@ export default function Receiving({ user }) {
         } finally {
             setActionLoading((prev) => ({ ...prev, [id]: false }));
         }
+    };
+
+    const playAlert = (referral) => {
+        if (!('speechSynthesis' in window)) {
+            alert('Web Speech API is not supported in this browser.');
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const text = `Emergency alert: Incoming ${referral.urgency} referral for ${referral.patientReference}. Required capabilities: ${referral.requirements.join(', ')}.`;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.95;
+        window.speechSynthesis.speak(utterance);
     };
 
     const awaiting = refs.filter(
@@ -125,35 +138,67 @@ export default function Receiving({ user }) {
                                     'Sending PHC'
                                 }
                                 action={
-                                    referral.status === 'Created' ? (
-                                        <>
-                                            <button
-                                                className="button secondary"
-                                                disabled={isActing}
-                                                onClick={() =>
-                                                    update(
-                                                        referral.id,
-                                                        'Facility Identified'
-                                                    )
-                                                }
-                                            >
-                                                {isActing ? 'Updating...' : "Can't accept"}
-                                            </button>
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <button
+                                            type="button"
+                                            className="button secondary"
+                                            title="Listen to spoken audio alert"
+                                            onClick={() => playAlert(referral)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                                        >
+                                            <Volume2 size={15} /> Listen Alert
+                                        </button>
 
-                                            <button
-                                                className="button primary"
-                                                disabled={isActing}
-                                                onClick={() =>
-                                                    update(
-                                                        referral.id,
-                                                        'Accepted'
-                                                    )
-                                                }
-                                            >
-                                                {isActing ? 'Accepting...' : 'Accept'}
-                                            </button>
-                                        </>
-                                    ) : null
+                                        {referral.status === 'Created' && (
+                                            <>
+                                                <button
+                                                    className="button secondary"
+                                                    disabled={isActing}
+                                                    onClick={() =>
+                                                        update(
+                                                            referral.id,
+                                                            'Facility Identified'
+                                                        )
+                                                    }
+                                                >
+                                                    {isActing ? 'Updating...' : "Can't accept"}
+                                                </button>
+
+                                                <button
+                                                    className="button primary"
+                                                    disabled={isActing}
+                                                    onClick={() =>
+                                                        update(
+                                                            referral.id,
+                                                            'Accepted'
+                                                        )
+                                                    }
+                                                >
+                                                    {isActing ? 'Accepting...' : 'Accept'}
+                                                </button>
+                                            </>
+                                        )}
+
+                                        {referral.status === 'Accepted' && (
+                                            <>
+                                                <button
+                                                    className="button secondary"
+                                                    disabled={isActing}
+                                                    onClick={() => update(referral.id, 'In Transit')}
+                                                >
+                                                    Mark In Transit
+                                                </button>
+
+                                                <button
+                                                    className="button primary"
+                                                    disabled={isActing}
+                                                    onClick={() => update(referral.id, 'Care Confirmed')}
+                                                >
+                                                    Confirm Care
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
                                 }
                             />
                         );

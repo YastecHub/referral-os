@@ -382,6 +382,23 @@ export const api = {
             }
         },
 
+        async getMatchCandidates({ urgency, requirements, sendingFacilityId } = {}) {
+            try {
+                const res = await request('/referrals/match-candidates', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        urgency: urgency || 'Urgent',
+                        requiredCapabilities: requirements || [],
+                        sendingFacilityId
+                    })
+                });
+                return res?.candidates || [];
+            } catch (err) {
+                console.warn('Match preview unavailable:', err.message);
+                return [];
+            }
+        },
+
         async structureWithAI(note) {
             try {
                 const response = await request('/referrals/ai-assist', {

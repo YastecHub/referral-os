@@ -93,7 +93,7 @@ app.get("/api/docs.json", (req, res) => {
 app.get("/", (_req, res) => res.redirect("/api/docs"));
 
 // ── Health ────────────────────────────────────────────────────────────────────
-app.get("/health", (_req, res) => res.json({ status: "ok", service: "ReferralOS" }));
+app.get(["/health", "/api/health"], (_req, res) => res.json({ status: "ok", service: "ReferralOS" }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
