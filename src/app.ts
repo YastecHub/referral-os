@@ -11,16 +11,37 @@ import { errorHandler, notFound } from "./middleware/errorHandler";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
+const isOriginAllowed = (origin: string | undefined): boolean => {
+  // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+  if (!origin) return true;
+  if (process.env.NODE_ENV !== "production") return true;
+
+  const allowedOrigins = (env.CLIENT_ORIGIN || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+
+  try {
+    const url = new URL(origin);
+    if (url.hostname.endsWith(".onrender.com") || url.hostname.endsWith(".vercel.app")) {
+      return true;
+    }
+  } catch {
+    // invalid URL format
+  }
+
+  return false;
+};
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, server-to-server)
-      if (!origin) return callback(null, true);
-      if (
-        process.env.NODE_ENV !== "production" ||
-        origin === env.CLIENT_ORIGIN ||
-        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
-      ) {
+      if (isOriginAllowed(origin)) {
         return callback(null, true);
       }
       return callback(new Error(`Origin ${origin} not allowed by CORS`));

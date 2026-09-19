@@ -8,15 +8,34 @@ import { JwtPayload } from "./types";
 
 const httpServer = createServer(app);
 
+const isOriginAllowed = (origin: string | undefined): boolean => {
+  if (!origin) return true;
+  if (process.env.NODE_ENV !== "production") return true;
+
+  const allowedOrigins = (env.CLIENT_ORIGIN || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+
+  try {
+    const url = new URL(origin);
+    if (url.hostname.endsWith(".onrender.com") || url.hostname.endsWith(".vercel.app")) {
+      return true;
+    }
+  } catch {
+    // invalid URL format
+  }
+
+  return false;
+};
+
 const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (
-        process.env.NODE_ENV !== "production" ||
-        origin === env.CLIENT_ORIGIN ||
-        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
-      ) {
+      if (isOriginAllowed(origin)) {
         return callback(null, true);
       }
       return callback(new Error(`Origin ${origin} not allowed by CORS`));
@@ -84,8 +103,9 @@ process.on("uncaughtException", (err: Error) => {
   console.error("⚠️  [Uncaught Exception]:", err?.message || err);
 });
 
-httpServer.listen(env.PORT, () => {
-  console.log(`🚀  ReferralOS API running on http://localhost:${env.PORT}`);
+const HOST = "0.0.0.0";
+httpServer.listen(env.PORT, HOST, () => {
+  console.log(`🚀  ReferralOS API running on port ${env.PORT} (${HOST})`);
   console.log(`   Environment : ${env.NODE_ENV}`);
   console.log(`   AI Provider : ${env.AI_PROVIDER}`);
   console.log(`   Swagger Docs: http://localhost:${env.PORT}/api/docs`);

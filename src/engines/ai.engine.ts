@@ -107,7 +107,7 @@ async function callGroq(prompt: string, json: boolean): Promise<string> {
       const response = await client.chat.completions.create({
         model,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: json ? 512 : 200,
+        max_tokens: json ? 1500 : 500,
         ...(json && { response_format: { type: "json_object" } }),
       });
 
@@ -116,7 +116,12 @@ async function callGroq(prompt: string, json: boolean): Promise<string> {
       lastError = err;
       const status = (err as { status?: number }).status;
       const code = (err as { error?: { code?: string } }).error?.code;
-      if (status === 404 || code === "model_not_found") {
+      if (
+        status === 404 ||
+        code === "model_not_found" ||
+        code === "json_validate_failed" ||
+        status === 400
+      ) {
         continue;
       }
       throw err;
