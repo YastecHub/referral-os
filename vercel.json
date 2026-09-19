@@ -1,0 +1,11 @@
+{
+  "buildCommand": "cd referral-os-frontend && npm install && npm run build",
+  "outputDirectory": "referral-os-frontend/dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
