@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Link,
     useNavigate
@@ -211,7 +211,14 @@ export function SignIn() {
                 <button
                     type="button"
                     className="button secondary full"
-                    onClick={() => navigate('/admin')}
+                    onClick={async () => {
+                        setLoading(true);
+                        try {
+                            await api.auth.signIn({ email: 'admin@referralos.com', password: 'demo', isAdmin: true });
+                        } catch {}
+                        setLoading(false);
+                        navigate('/admin');
+                    }}
                 >
                     Sign in as Admin
                 </button>
@@ -241,8 +248,22 @@ export function SignUp() {
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [facilities, setFacilities] = useState([
+        { id: 'mushin-phc', name: 'Mushin PHC' },
+        { id: 'surulere-phc', name: 'Surulere PHC' },
+        { id: 'lagos-general', name: 'Lagos General' },
+        { id: 'ebute-metta-chc', name: 'Ebute Metta CHC' }
+    ]);
 
     const navigate = useNavigate();
+
+    useEffect(() => {
+        api.auth.getFacilities().then((res) => {
+            if (Array.isArray(res) && res.length > 0) {
+                setFacilities(res);
+            }
+        });
+    }, []);
 
 
     const updateForm = (key, value) => {
@@ -325,21 +346,14 @@ export function SignUp() {
                                 )
                             }
                         >
-                            <option>
-                                Mushin PHC
-                            </option>
-
-                            <option>
-                                Surulere PHC
-                            </option>
-
-                            <option>
-                                Lagos General
-                            </option>
-
-                            <option>
-                                Ebute Metta CHC
-                            </option>
+                            {facilities.map((fac) => {
+                                const name = fac.shortName || fac.name;
+                                return (
+                                    <option key={fac.id || name} value={name}>
+                                        {name}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </Field>
                 </div>

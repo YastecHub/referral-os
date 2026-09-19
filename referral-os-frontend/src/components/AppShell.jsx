@@ -8,6 +8,7 @@ import {
     Menu,
     X
 } from 'lucide-react';
+import { api } from '../services/api';
 
 export default function AppShell({
     user,
@@ -63,6 +64,7 @@ export default function AppShell({
 
     function handleSignOut() {
         setMenuOpen(false);
+        api.auth.signOut();
         navigate('/signin');
     }
 

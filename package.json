@@ -8,6 +8,8 @@
     "referral-os-frontend"
   ],
   "scripts": {
+    "build": "npm --prefix referral-os-backend run build",
+    "start": "node referral-os-backend/dist/server.js",
     "dev:backend": "npm --prefix referral-os-backend run dev",
     "dev:frontend": "npm --prefix referral-os-frontend run dev",
     "build:backend": "npm --prefix referral-os-backend run build",

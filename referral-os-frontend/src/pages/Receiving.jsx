@@ -4,6 +4,7 @@ import React, {
 } from 'react';
 
 import { api } from '../services/api';
+import { facilities as mockFacilities } from '../data/mockData';
 
 import {
     PageIntro,
@@ -14,62 +15,65 @@ import {
 
 export default function Receiving({ user }) {
     const [refs, setRefs] = useState([]);
+    const [facilities, setFacilities] = useState(mockFacilities);
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState({});
 
+    const facilityId = user?.facilityId || 'mushin-phc';
 
     const load = async () => {
-        setRefs(
-            await api.referrals.list({
-                facilityId: user.facilityId,
-                direction: 'received'
-            })
-        );
-    };
+        setLoading(true);
+        try {
+            const [referralsData, facilitiesData] = await Promise.all([
+                api.referrals.list({
+                    facilityId,
+                    direction: 'received'
+                }),
+                api.facilities.list()
+            ]);
 
+            if (Array.isArray(referralsData)) setRefs(referralsData);
+            if (Array.isArray(facilitiesData) && facilitiesData.length > 0) {
+                setFacilities(facilitiesData);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         load();
-    }, []);
-
+    }, [facilityId]);
 
     const update = async (id, status) => {
-        await api.referrals.updateStatus(
-            id,
-            status
-        );
-
-        await load();
+        setActionLoading((prev) => ({ ...prev, [id]: true }));
+        try {
+            await api.referrals.updateStatus(id, status);
+            await load();
+        } finally {
+            setActionLoading((prev) => ({ ...prev, [id]: false }));
+        }
     };
 
-
     const awaiting = refs.filter(
-        (referral) =>
-            referral.status === 'Created'
+        (referral) => referral.status === 'Created'
     ).length;
-
 
     const urgent = refs.filter(
-        (referral) =>
-            [
-                'Emergency',
-                'Urgent'
-            ].includes(referral.urgency)
+        (referral) => ['Emergency', 'Urgent'].includes(referral.urgency)
     ).length;
-
 
     const accepted = refs.filter(
-        (referral) =>
-            referral.status === 'Accepted'
+        (referral) => referral.status === 'Accepted'
     ).length;
-
 
     return (
         <div>
             <PageIntro
                 eyebrow="RECEIVING"
                 title="Incoming referrals"
-                subtitle="Review and respond to referrals sent to your facility."
+                subtitle={`Review and respond to referrals sent to ${user?.facilityName || 'your facility'}.`}
             />
-
 
             <div className="stats-grid compact">
                 <StatCard
@@ -90,11 +94,9 @@ export default function Receiving({ user }) {
                 />
             </div>
 
-
             <div className="section-heading">
                 <div>
                     <h2>Priority queue</h2>
-
                     <p>
                         {awaiting} awaiting response
                     </p>
@@ -105,49 +107,62 @@ export default function Receiving({ user }) {
                 </span>
             </div>
 
-
             <div className="referral-list">
-                {refs.map((referral) => (
-                    <ReferralCard
-                        key={referral.id}
-                        referral={referral}
-                        facilityName={
-                            referral.sendingFacilityId ===
-                            'mushin-phc'
-                                ? 'Mushin PHC'
-                                : 'Surulere PHC'
-                        }
-                        action={
-                            referral.status === 'Created' ? (
-                                <>
-                                    <button
-                                        className="button secondary"
-                                        onClick={() =>
-                                            update(
-                                                referral.id,
-                                                'Facility Identified'
-                                            )
-                                        }
-                                    >
-                                        Can't accept
-                                    </button>
+                {refs.length > 0 ? (
+                    refs.map((referral) => {
+                        const sendingFacility = facilities.find(
+                            (f) => f.id === referral.sendingFacilityId || f.name === referral.sendingFacility?.name
+                        );
+                        const isActing = actionLoading[referral.id];
 
-                                    <button
-                                        className="button primary"
-                                        onClick={() =>
-                                            update(
-                                                referral.id,
-                                                'Accepted'
-                                            )
-                                        }
-                                    >
-                                        Accept
-                                    </button>
-                                </>
-                            ) : null
-                        }
-                    />
-                ))}
+                        return (
+                            <ReferralCard
+                                key={referral.id}
+                                referral={referral}
+                                facilityName={
+                                    sendingFacility?.shortName ||
+                                    referral.sendingFacility?.name ||
+                                    'Sending PHC'
+                                }
+                                action={
+                                    referral.status === 'Created' ? (
+                                        <>
+                                            <button
+                                                className="button secondary"
+                                                disabled={isActing}
+                                                onClick={() =>
+                                                    update(
+                                                        referral.id,
+                                                        'Facility Identified'
+                                                    )
+                                                }
+                                            >
+                                                {isActing ? 'Updating...' : "Can't accept"}
+                                            </button>
+
+                                            <button
+                                                className="button primary"
+                                                disabled={isActing}
+                                                onClick={() =>
+                                                    update(
+                                                        referral.id,
+                                                        'Accepted'
+                                                    )
+                                                }
+                                            >
+                                                {isActing ? 'Accepting...' : 'Accept'}
+                                            </button>
+                                        </>
+                                    ) : null
+                                }
+                            />
+                        );
+                    })
+                ) : (
+                    <div className="panel" style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
+                        {loading ? 'Checking for incoming referrals...' : 'No incoming referrals in queue at this time.'}
+                    </div>
+                )}
             </div>
         </div>
     );

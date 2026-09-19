@@ -128,19 +128,19 @@ export default function Admin() {
                                     }
                                 />
 
-                       <div className="readiness-meter">
-    <div className="readiness-track">
-        <span
-            style={{
-                width: `${facility.readiness.percentage}%`
-            }}
-        />
-    </div>
+                        <div className="readiness-meter">
+                            <div className="readiness-track">
+                                <span
+                                    style={{
+                                        width: `${facility?.readiness?.percentage ?? 80}%`
+                                    }}
+                                />
+                            </div>
 
-    <b>
-        {facility.readiness.percentage}%
-    </b>
-</div>
+                            <b>
+                                {facility?.readiness?.percentage ?? 80}%
+                            </b>
+                        </div>
 
                                 <span className="desktop-only">
                                     {facility.type}
@@ -176,8 +176,8 @@ export default function Admin() {
                                 <Marker
                                     key={facility.id}
                                     position={[
-                                        facility.location.lat,
-                                        facility.location.lng
+                                        facility?.location?.lat || 6.5244,
+                                        facility?.location?.lng || 3.3792
                                     ]}
                                 >
                                     <Popup>
@@ -200,8 +200,7 @@ export default function Admin() {
                                             <div>
                                                 <b>Readiness:</b>{' '}
                                                 {
-                                                    facility.readiness
-                                                        .percentage
+                                                    facility?.readiness?.percentage ?? 80
                                                 }
                                                 %
                                             </div>
