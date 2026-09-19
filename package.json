@@ -1,50 +1,27 @@
 {
-  "name": "referral-os",
+  "name": "referral-os-monorepo",
   "version": "1.0.0",
-  "description": "ReferralOS — Real-time emergency maternal referral coordination system",
-  "main": "dist/server.js",
+  "private": true,
+  "description": "ReferralOS — Multi-facility maternal & emergency triage and referral system",
+  "workspaces": [
+    "referral-os-backend",
+    "referral-os-frontend"
+  ],
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "prisma generate && tsc",
-    "postinstall": "prisma generate && tsc",
-    "start": "node dist/server.js",
-    "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma generate",
-    "db:seed": "ts-node prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force && ts-node prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "dev:backend": "npm --prefix referral-os-backend run dev",
+    "dev:frontend": "npm --prefix referral-os-frontend run dev",
+    "build:backend": "npm --prefix referral-os-backend run build",
+    "build:frontend": "npm --prefix referral-os-frontend run build",
+    "test:backend": "npm --prefix referral-os-backend test",
+    "prisma:studio": "npm --prefix referral-os-backend run prisma:studio"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.0",
-    "@prisma/client": "^5.14.0",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/multer": "^2.2.0",
-    "@types/node": "^20.14.9",
-    "@types/swagger-jsdoc": "^6.0.4",
-    "@types/swagger-ui-express": "^4.1.6",
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "groq-sdk": "^0.7.0",
-    "jsonwebtoken": "^9.0.2",
-    "multer": "^2.4.0",
-    "openai": "^4.52.0",
-    "prisma": "^5.14.0",
-    "socket.io": "^4.7.5",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1",
-    "typescript": "^5.5.3",
-    "zod": "^3.23.8"
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
-  },
-  "devDependencies": {
-    "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0"
-  }
+  "keywords": [
+    "healthcare",
+    "referral",
+    "triage",
+    "nigeria",
+    "emergency"
+  ],
+  "author": "YastecHub",
+  "license": "ISC"
 }
