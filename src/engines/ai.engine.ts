@@ -98,14 +98,32 @@ async function callGroq(prompt: string, json: boolean): Promise<string> {
   const Groq = (await import("groq-sdk")).default;
   const client = new Groq({ apiKey: env.GROQ_API_KEY });
 
-  const response = await client.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    messages: [{ role: "user", content: prompt }],
-    max_tokens: json ? 512 : 200,
-    ...(json && { response_format: { type: "json_object" } }),
-  });
+  // Try active models available on this Groq account
+  const models = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+  let lastError: unknown = null;
 
-  return response.choices[0].message.content ?? "";
+  for (const model of models) {
+    try {
+      const response = await client.chat.completions.create({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: json ? 512 : 200,
+        ...(json && { response_format: { type: "json_object" } }),
+      });
+
+      return response.choices[0].message.content ?? "";
+    } catch (err: unknown) {
+      lastError = err;
+      const status = (err as { status?: number }).status;
+      const code = (err as { error?: { code?: string } }).error?.code;
+      if (status === 404 || code === "model_not_found") {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError;
 }
 
 // ─── Claude ───────────────────────────────────────────────────────────────────
